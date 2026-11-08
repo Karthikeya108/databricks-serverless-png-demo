@@ -1,0 +1,2 @@
+owner = "you@example.com" # value of the Owner tag on all AWS resources
+demo_users = "user.a@example.com,user.b@example.com" # persona A first; keep in sync with the bundle

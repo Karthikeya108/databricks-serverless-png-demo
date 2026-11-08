@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Operations Assistant</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#5b6672; --line:#dde1e6; --ok:#1f7a4d; --bad:#b42318; --accent:#2457c5; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; background:var(--card); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  header h1 { font-size:16px; margin:0; }
+  #who { color:var(--muted); }
+  main { display:grid; grid-template-columns: 1fr 420px; gap:16px; padding:16px; height:calc(100vh - 54px); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:8px; display:flex; flex-direction:column; min-height:0; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0; padding:10px 14px; border-bottom:1px solid var(--line); }
+  #log { flex:1; overflow:auto; padding:14px; }
+  .msg { margin:0 0 12px; padding:10px 12px; border-radius:8px; max-width:90%; white-space:pre-wrap; }
+  .user { background:#e8eefc; margin-left:auto; }
+  .bot { background:#f1f3f5; }
+  .bot table { border-collapse:collapse; margin:6px 0; white-space:normal; }
+  .bot td, .bot th { border:1px solid var(--line); padding:3px 6px; }
+  form { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); }
+  input { flex:1; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+  button { padding:9px 14px; border:0; border-radius:6px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
+  button:disabled { opacity:.5; }
+  .side { display:grid; grid-template-rows: auto 1fr; gap:16px; min-height:0; }
+  #status div { padding:6px 14px; display:flex; justify-content:space-between; gap:8px; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  #trace { overflow:auto; padding:8px 14px; }
+  .step { border-bottom:1px dashed var(--line); padding:8px 0; }
+  .step b { font-family:ui-monospace, monospace; }
+  .path { font-size:12px; color:var(--muted); }
+  pre { margin:4px 0 0; font-size:12px; white-space:pre-wrap; word-break:break-word; color:#333; max-height:160px; overflow:auto; }
+  .chips { padding:0 12px 10px; display:flex; flex-wrap:wrap; gap:6px; }
+  .working { display:flex; align-items:center; gap:10px; color:var(--muted); white-space:normal; }
+  .working .t { margin-left:auto; font-variant-numeric:tabular-nums; font-size:12px; }
+  .spin { width:14px; height:14px; border:2px solid #c9d3e3; border-top-color:var(--accent); border-radius:50%;
+          animation:spin .8s linear infinite; flex:none; display:inline-block; vertical-align:-2px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .bar { height:2px; background:linear-gradient(90deg, transparent, var(--accent), transparent); background-size:50% 100%;
+         background-repeat:no-repeat; animation:slide 1.2s ease-in-out infinite; visibility:hidden; }
+  .busy .bar { visibility:visible; }
+  @keyframes slide { from { background-position:-50% 0; } to { background-position:150% 0; } }
+  .step.run b::after { content:' running…'; font-family:system-ui; font-weight:normal; color:var(--accent); font-size:12px; }
+  .step.err b { color:var(--bad); }
+  .chip { background:#eef1f5; border:1px solid var(--line); color:var(--ink); padding:5px 9px; font-size:12px; }
+</style>
+</head>
+<body>
+<header><h1>Operations Assistant</h1><span id="who"></span></header>
+<main>
+  <section id="chat">
+    <h2>Chat</h2><div class="bar"></div>
+    <div id="log"></div>
+    <div class="chips">
+      <button class="chip">Which sites had the worst SLA performance last quarter?</button>
+      <button class="chip">Show open high-priority requests at that site</button>
+      <button class="chip">Show my open requests</button>
+      <button class="chip">Check the warranty of the asset in REQ-1042 and create a follow-up request</button>
+      <button class="chip">Set REQ-1042 to Resolved</button>
+    </div>
+    <form id="f"><input id="q" placeholder="Ask about sites, requests or assets…" autocomplete="off"><button id="send">Send</button></form>
+  </section>
+  <div class="side">
+    <section><h2>Internal systems (as you)</h2><div id="status"><div><span><span class="spin"></span> Checking access…</span></div></div></section>
+    <section><h2>Tool calls</h2><div id="trace"></div></section>
+  </div>
+</main>
+<script>
+const history = [];
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function render(md) {  // tiny markdown: tables, bold, line breaks
+  const lines = esc(md).split('\n'); let out = '', table = [];
+  const flush = () => { if (table.length) {
+      const rows = table.filter(r => !/^\s*\|?\s*:?-{2,}/.test(r));
+      out += '<table>' + rows.map((r, i) => '<tr>' + r.replace(/^\||\|$/g,'').split('|')
+        .map(c => i ? `<td>${c.trim()}</td>` : `<th>${c.trim()}</th>`).join('') + '</tr>').join('') + '</table>';
+      table = []; } };
+  for (const l of lines) { if (l.trim().startsWith('|')) table.push(l.trim()); else { flush(); out += l + '\n'; } }
+  flush(); return out.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+}
+function add(role, text) {
+  const d = document.createElement('div'); d.className = 'msg ' + role;
+  d.innerHTML = role === 'bot' ? render(text) : esc(text); $('log').appendChild(d); $('log').scrollTop = 1e9;
+}
+async function status() {
+  const r = await fetch('api/status'); const s = await r.json();
+  $('who').textContent = s.user ? 'Signed in as ' + s.user : '';
+  renderStatus(s.services);
+  $('status').innerHTML += (s.services?.some(x => !x.ok) ? `<div><a href="${s.mcp_page}" target="_blank">Sign in / check access in Unity Gateway → MCPs</a></div>` : '');
+}
+function setBusy(on) {
+  $('chat').classList.toggle('busy', on); $('send').disabled = on; $('q').disabled = on;
+  document.querySelectorAll('.chip').forEach(c => c.disabled = on);
+  $('send').innerHTML = on ? '<span class="spin" style="border-color:#ffffff66;border-top-color:#fff"></span>' : 'Send';
+}
+function renderStatus(services) {
+  $('status').innerHTML = (services || []).map(x =>
+    `<div><span>${esc(x.service)}</span><span class="${x.ok ? 'ok' : 'bad'}">${x.ok ? '● reachable · ' : '● '}${esc(x.detail)}</span></div>`).join('');
+}
+async function ask(q) {
+  add('user', q); history.push({role: 'user', content: q}); setBusy(true);
+  // Live "working" bubble: current step + elapsed seconds
+  const w = document.createElement('div'); w.className = 'msg bot working';
+  w.innerHTML = '<span class="spin"></span><span class="s">Starting…</span><span class="t">0 s</span>';
+  $('log').appendChild(w); $('log').scrollTop = 1e9;
+  const t0 = Date.now(), timer = setInterval(() => w.querySelector('.t').textContent = Math.round((Date.now() - t0) / 1000) + ' s', 500);
+  const phase = txt => { w.querySelector('.s').textContent = txt; };
+  const steps = {}; let answer = null;
+  const handle = ev => {
+    if (ev.type === 'phase') phase(ev.text);
+    else if (ev.type === 'status') renderStatus(ev.services);
+    else if (ev.type === 'tool_start') {
+      phase(`Calling ${ev.tool} · ${ev.path}`);
+      const el = document.createElement('div'); el.className = 'step run';
+      el.innerHTML = `<b>${esc(ev.tool)}</b> <span class="path">${esc(ev.path)} · <span class="ms"><span class="spin"></span></span></span><pre>${esc(JSON.stringify(ev.args))}</pre>`;
+      $('trace').prepend(el); steps[ev.id] = el;
+    } else if (ev.type === 'tool_end') {
+      const el = steps[ev.id]; if (!el) return;
+      el.classList.remove('run'); if (ev.error) el.classList.add('err');
+      el.querySelector('.ms').textContent = ev.ms + ' ms';
+      el.querySelector('pre').textContent += '\n→ ' + ev.result;
+    } else if (ev.type === 'answer') answer = ev.answer;
+    else if (ev.type === 'error') answer = 'Error: ' + ev.error;
+  };
+  try {
+    const r = await fetch('api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({messages: history})});
+    if (!r.ok || !r.body) { const d = await r.json().catch(() => ({})); throw new Error(d.error || ('HTTP ' + r.status)); }
+    const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+    for (;;) {
+      const {done, value} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let i; while ((i = buf.indexOf('\n\n')) >= 0) {
+        const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+        for (const line of chunk.split('\n')) if (line.startsWith('data: ')) { try { handle(JSON.parse(line.slice(6))); } catch (e) { console.warn('bad event', e); } }
+      }
+    }
+  } catch (e) { answer = 'Error: ' + e.message; }
+  finally { clearInterval(timer); w.remove(); setBusy(false); }
+  if (answer == null) answer = 'Error: the response ended unexpectedly.';
+  if (typeof answer !== 'string') answer = JSON.stringify(answer);
+  add('bot', answer);
+  if (!answer.startsWith('Error:')) history.push({role: 'assistant', content: answer}); else history.pop();
+  $('q').focus();
+}
+$('f').onsubmit = e => { e.preventDefault(); const q = $('q').value.trim(); if (q) { $('q').value = ''; ask(q); } };
+document.querySelectorAll('.chip').forEach(b => b.onclick = () => ask(b.textContent));
+status();
+</script>
+</body>
+</html>

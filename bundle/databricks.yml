@@ -1,0 +1,123 @@
+bundle:
+  name: pngdemo-aws
+  engine: direct # used for mcp_services
+
+variables:
+  catalog:
+    default: ops_demo
+  demo_users:
+    description: UPNs owning seeded records, comma-separated, persona A first (must match demo_users in infra/30-aws-services)
+  service_hosts:
+    description: Internal service hostnames, comma-separated (hosts of `terraform output service_urls` in infra/30-aws-services)
+  genie_space_id:
+    description: Genie space "Operations history" (created by scripts/05-create-genie-space.sh, ID in .state/genie_space_id)
+  app_mcp_services:
+    description: MCP services the app connects to (comma-separated full names). Add new services here
+    default: ops_demo.tools.servicedesk,ops_demo.tools.assets
+  model_endpoint:
+    description: Foundation Model API endpoint used by the app
+    default: databricks-claude-sonnet-5-5
+
+# Workspace: CLI profile pngdemo-ws (-p or DATABRICKS_CONFIG_PROFILE). Values: .databricks/bundle/dev/variable-overrides.json
+# (see variable-overrides.json.example). Connections are created by scripts/04-create-connections.sh (Connections API);
+# MCP services, their grants and the app are managed here.
+
+resources:
+  jobs:
+    generate_ops_data:
+      name: pngdemo-generate-ops-data
+      description: Writes the historical Delta tables to the catalog managed location (customer S3 via the NCC private endpoint)
+      tasks:
+        - task_key: generate
+          spark_python_task:
+            python_file: src/generate_data.py
+            parameters: ["--src_dir", "${workspace.file_path}/src", "--catalog", "${var.catalog}", "--schema", "lakehouse", "--demo_users", "${var.demo_users}"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+      permissions:
+        - group_name: pngdemo-admins
+          level: CAN_MANAGE
+
+    connectivity_check:
+      name: pngdemo-connectivity-check
+      description: From serverless, checks the private network gateway (internal services) and Private Link (managed location)
+      tasks:
+        - task_key: check
+          spark_python_task:
+            python_file: src/connectivity_check.py
+            parameters: ["--mcp_hosts", "${var.service_hosts}", "--table", "${var.catalog}.lakehouse.sites"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+      permissions:
+        - group_name: pngdemo-admins
+          level: CAN_MANAGE
+
+  # Internal systems registered in Unity Gateway. End users get EXECUTE on the service; USE CONNECTION stays with the
+  # connection owner (it would bypass tool selection and policies).
+  mcp_services:
+    servicedesk:
+      parent: schemas/${var.catalog}.tools
+      mcp_service_id: servicedesk
+      comment: Internal service desk (open requests, create, update status) via private network gateway; acts as the calling user
+      config:
+        source_connection:
+          name: connections/${var.catalog}.tools.servicedesk_conn
+      grants:
+        - principal: pngdemo-users
+          privileges: [EXECUTE]
+        - principal: pngdemo-admins
+          privileges: [MANAGE, EXECUTE]
+
+    assets:
+      parent: schemas/${var.catalog}.tools
+      mcp_service_id: assets
+      comment: Internal asset register (assets, warranty, history) via private network gateway; acts as the calling user
+      config:
+        source_connection:
+          name: connections/${var.catalog}.tools.assets_conn
+      grants:
+        - principal: pngdemo-users
+          privileges: [EXECUTE]
+        - principal: pngdemo-assets-only
+          privileges: [EXECUTE]
+        - principal: pngdemo-admins
+          privileges: [MANAGE, EXECUTE]
+
+  apps:
+    ops_assistant:
+      name: pngdemo-ops-assistant
+      description: Operations Assistant — acts on behalf of the signed-in user (Genie + Unity Gateway MCP services)
+      source_code_path: ./app
+      config:
+        command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+        env:
+          - name: MODEL_ENDPOINT
+            value: ${var.model_endpoint}
+          - name: GENIE_SPACE_ID
+            value: ${var.genie_space_id}
+          - name: MCP_SERVICES
+            value: ${var.app_mcp_services}
+      # User authorization: the app only ever calls Databricks with the signed-in user's token.
+      # Its own service principal gets no data or MCP access.
+      user_api_scopes:
+        - serving.serving-endpoints
+        - dashboards.genie
+        - ai-gateway
+      permissions:
+        - group_name: pngdemo-users
+          level: CAN_USE
+        - group_name: pngdemo-assets-only
+          level: CAN_USE
+        - group_name: pngdemo-admins
+          level: CAN_MANAGE
+
+targets:
+  dev:
+    default: true
+    mode: development

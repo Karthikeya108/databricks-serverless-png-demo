@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {"id": "10000000000000000000000000000001", "question": ["Which sites had the worst SLA performance last quarter?"]},
+      {"id": "10000000000000000000000000000002", "question": ["What is the average resolution time per priority over the last 6 months?"]},
+      {"id": "10000000000000000000000000000003", "question": ["Which assets at BER-01 had the lowest uptime in the last 90 days?"]}
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {"identifier": "ops_demo.lakehouse.asset_daily_metrics"},
+      {"identifier": "ops_demo.lakehouse.assets_dim"},
+      {"identifier": "ops_demo.lakehouse.request_history"},
+      {"identifier": "ops_demo.lakehouse.sites"}
+    ]
+  },
+  "instructions": {
+    "example_question_sqls": [
+      {
+        "id": "20000000000000000000000000000001",
+        "question": ["Which sites had the worst SLA performance last quarter?"],
+        "sql": [
+          "SELECT r.site_id, s.name, COUNT(*) AS requests,\n",
+          "       ROUND(100.0 * AVG(CASE WHEN r.sla_met THEN 1 ELSE 0 END), 1) AS sla_met_pct\n",
+          "FROM ops_demo.lakehouse.request_history r JOIN ops_demo.lakehouse.sites s USING (site_id)\n",
+          "WHERE r.closed_at >= date_trunc('QUARTER', add_months(current_date(), -3))\n",
+          "  AND r.closed_at < date_trunc('QUARTER', current_date())\n",
+          "GROUP BY r.site_id, s.name ORDER BY sla_met_pct ASC"
+        ]
+      }
+    ],
+    "text_instructions": [
+      {
+        "id": "30000000000000000000000000000001",
+        "content": [
+          "This space holds HISTORICAL operations data. Live/open service requests are not here; they live in the internal service desk system.\n",
+          "request_history: closed service requests (one row per request). SLA performance = share of rows with sla_met = true. resolution_hours = hours from opened_at to closed_at. Priorities P1 (most urgent) to P4.\n",
+          "asset_daily_metrics: one row per asset per day with uptime_pct and incident_count. Join to assets_dim on asset_id, and assets_dim to sites on site_id.\n",
+          "Always show site_id together with the site name. 'Last quarter' means the previous full calendar quarter."
+        ]
+      }
+    ]
+  }
+}

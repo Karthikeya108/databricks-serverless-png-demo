@@ -1,0 +1,44 @@
+# Service registry: the single source of truth for internal services.
+# Drives: firewall rules (infra/20-aws-network), load balancer rules + containers (infra/30-aws-services),
+# UC connections / MCP services (scripts, bundle). Onboarding a service = one entry here + terraform apply.
+#
+#   kind            mcp | api              (what Databricks sees: an MCP server or a plain REST API)
+#   auth            entra | none           (entra = validates the end user's Entra token; none = shadow IT)
+#   databricks_zone true | false           (may the Databricks landing zone (gateway subnet) reach it?)
+#   server          tool set of the bundled MCP image (mcp/server.py SERVER=...)
+domain: examplecorp-internal.duckdns.org
+
+services:
+  servicedesk:
+    kind: mcp
+    auth: entra
+    server: service_desk
+    databricks_zone: true
+  assets:
+    kind: mcp
+    auth: entra
+    server: asset_inventory
+    databricks_zone: true
+  orders:
+    kind: api
+    auth: entra
+    databricks_zone: true
+  legacy:
+    kind: api
+    auth: none
+    databricks_zone: false # not approved for the Databricks zone: blocked in per_service firewall mode
+
+databases:
+  postgres:
+    port: 5432
+    databricks_zone: true
+
+# Internet domains the firewall allows (TLS SNI match, no decryption). Everything else is dropped and logged.
+egress_allowlist:
+  internal_services: # from the internal services VPC (e.g. Entra JWKS for token validation)
+    - login.microsoftonline.com
+  databricks_zone: # from the gateway subnet, used when the gateway runs in ALL_TRAFFIC mode
+    - pypi.org
+    - files.pythonhosted.org
+    - github.com
+    - api.github.com

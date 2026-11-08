@@ -1,0 +1,154 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CreateNicInVpc",
+      "Effect": "Allow",
+      "Action": "ec2:CreateNetworkInterface",
+      "Resource": [
+        "arn:aws:ec2:${region}:${account_id}:network-interface/*",
+        "arn:aws:ec2:${region}:${account_id}:subnet/*",
+        "arn:aws:ec2:${region}:${account_id}:security-group/*"
+      ]
+    },
+    {
+      "Sid": "ManageAndCleanupNic",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateNetworkInterfacePermission",
+        "ec2:DeleteNetworkInterface",
+        "ec2:CreateTags"
+      ],
+      "Resource": "arn:aws:ec2:${region}:${account_id}:network-interface/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${region}"
+        }
+      }
+    },
+    {
+      "Sid": "CreateGatewayInVpcOnly",
+      "Effect": "Allow",
+      "Action": "vpc-lattice:CreateResourceGateway",
+      "Resource": "arn:aws:vpc-lattice:${region}:${account_id}:resourcegateway/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${region}",
+          "vpc-lattice:VpcId": "${vpc_id}",
+          "aws:RequestTag/Vendor": "Databricks",
+          "aws:RequestTag/DatabricksGateway": "true"
+        }
+      }
+    },
+    {
+      "Sid": "CreateManagedGatewayResources",
+      "Effect": "Allow",
+      "Action": "vpc-lattice:CreateResourceConfiguration",
+      "Resource": "arn:aws:vpc-lattice:${region}:${account_id}:resourceconfiguration/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${region}",
+          "aws:RequestTag/Vendor": "Databricks",
+          "aws:RequestTag/DatabricksManaged": "true"
+        }
+      }
+    },
+    {
+      "Sid": "CreateConfigOnDatabricksGatewayOnly",
+      "Effect": "Allow",
+      "Action": "vpc-lattice:CreateResourceConfiguration",
+      "Resource": "arn:aws:vpc-lattice:${region}:${account_id}:resourcegateway/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${region}",
+          "aws:RequestTag/Vendor": "Databricks",
+          "aws:ResourceTag/DatabricksGateway": "true"
+        }
+      }
+    },
+    {
+      "Sid": "DenyGatewayTagOnConfig",
+      "Effect": "Deny",
+      "Action": "vpc-lattice:CreateResourceConfiguration",
+      "Resource": "*",
+      "Condition": {
+        "Null": {
+          "aws:RequestTag/DatabricksGateway": "false"
+        }
+      }
+    },
+    {
+      "Sid": "TagOnCreateOnly",
+      "Effect": "Allow",
+      "Action": "vpc-lattice:TagResource",
+      "Resource": [
+        "arn:aws:vpc-lattice:${region}:${account_id}:resourcegateway/*",
+        "arn:aws:vpc-lattice:${region}:${account_id}:resourceconfiguration/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${region}",
+          "aws:RequestTag/Vendor": "Databricks",
+          "vpc-lattice:CreateAction": [
+            "CreateResourceGateway",
+            "CreateResourceConfiguration"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ManageManagedGatewayResources",
+      "Effect": "Allow",
+      "Action": [
+        "vpc-lattice:GetResourceGateway",
+        "vpc-lattice:DeleteResourceGateway",
+        "vpc-lattice:GetResourceConfiguration",
+        "vpc-lattice:DeleteResourceConfiguration",
+        "vpc-lattice:PutResourcePolicy",
+        "vpc-lattice:DeleteResourcePolicy"
+      ],
+      "Resource": [
+        "arn:aws:vpc-lattice:${region}:${account_id}:resourcegateway/*",
+        "arn:aws:vpc-lattice:${region}:${account_id}:resourceconfiguration/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${region}",
+          "aws:ResourceTag/Vendor": "Databricks"
+        }
+      }
+    },
+    {
+      "Sid": "ListAndDescribeInRegion",
+      "Effect": "Allow",
+      "Action": [
+        "vpc-lattice:GetResourcePolicy",
+        "vpc-lattice:ListResourceGateways",
+        "vpc-lattice:ListResourceConfigurations",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeRouteTables"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${region}"
+        }
+      }
+    },
+    {
+      "Sid": "VpcLatticeServiceLinkedRole",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "arn:aws:iam::${account_id}:role/aws-service-role/vpc-lattice.amazonaws.com/AWSServiceRoleForVpcLattice",
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": "vpc-lattice.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

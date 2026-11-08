@@ -1,0 +1,51 @@
+# ---- Local state, secrets and generated IDs (never commit) ----
+.state/
+*.env
+.env*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ---- Terraform ----
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
+
+# Plan output, apply logs and markers from local runs
+plan.txt
+*.log
+apply.start
+
+# ---- Databricks bundle state and local variable overrides ----
+**/.databricks/
+variable-overrides.json
+!variable-overrides.json.example
+
+# ---- Build artefacts ----
+**/wheels/
+*.zip
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+dist/
+build/
+
+# ---- Editors and OS ----
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

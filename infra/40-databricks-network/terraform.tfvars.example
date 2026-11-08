@@ -1,0 +1,5 @@
+owner = "you@example.com" # value of the Owner tag on all AWS resources
+databricks_account_id = "00000000-0000-0000-0000-000000000000"
+# Your admin role (console/CLI/Terraform), exempted from the bucket deny-all policy so you are not locked out
+admin_role_arn  = "arn:aws:iam::111111111111:role/your-admin-role"
+s3_rule_enabled = true # second apply (see main.tf)
