@@ -22,7 +22,7 @@ check "AWS ($AWS_PROFILE)" bash -c 'aws sts get-caller-identity --query Account 
 check "Databricks workspace ($WS)" bash -c "databricks current-user me -p $WS -o json | jq -er .userName >/dev/null && echo ok"
 check "Databricks account ($ACCT)" bash -c "databricks account workspaces list -p $ACCT -o json >/dev/null && echo ok"
 
-echo "== Customer network (AWS)"
+echo "== Your network (AWS)"
 NET=$(tfout 20-aws-network connect); SUBNET=$(jq -r .png_subnet_id <<<"$NET")
 check "Gateway network interfaces in the gateway subnet" bash -c "n=\$(aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=$SUBNET Name=tag:Vendor,Values=Databricks --query 'length(NetworkInterfaces[?Status==\`in-use\`])' --output text); echo \"\$n in use\"; [ \"\$n\" -ge 1 ]"
 check "ECS services" bash -c "aws ecs describe-services --cluster pngdemo --services servicedesk assets orders legacy --query 'services[].[serviceName,runningCount]' --output text | awk '{s=s \$1\"=\"\$2\" \"; if (\$2<1) f=1} END {print s; exit f}'"

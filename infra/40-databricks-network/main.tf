@@ -1,6 +1,6 @@
 # the demo's network connectivity configuration (NCC): one object, two private paths.
 #
-#   Path 1  Private Link (private endpoint rule) → customer S3 bucket (catalog managed location)
+#   Path 1  Private Link (private endpoint rule) → your S3 bucket (catalog managed location)
 #   Path 2  Private network gateway → dbx-connect VPC → TGW (→ firewall) → internal services
 #
 # S3 rule order (documented): create the rule → bucket policy with the endpoint ID → enable the rule. Two applies:
@@ -82,7 +82,7 @@ variable "enable_png" {
 }
 
 variable "png_traffic_mode" {
-  description = "SPECIFIC_DESTINATIONS (internal services only) or ALL_TRAFFIC (all serverless egress via the customer network)."
+  description = "SPECIFIC_DESTINATIONS (internal services only) or ALL_TRAFFIC (serverless internet egress via your network)."
   type        = string
   default     = "SPECIFIC_DESTINATIONS"
 }
@@ -124,7 +124,7 @@ resource "databricks_mws_network_connectivity_config" "this" {
   region = var.region
 }
 
-# ---------- Path 1: Private Link to the customer bucket ----------
+# ---------- Path 1: Private Link to your bucket ----------
 
 resource "databricks_mws_ncc_private_endpoint_rule" "s3" {
   network_connectivity_config_id = local.ncc_id

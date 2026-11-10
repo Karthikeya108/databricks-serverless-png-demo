@@ -1,5 +1,5 @@
 # Databricks serverless job: writes the historical Delta tables into ops_demo.lakehouse.
-# The catalog's managed location is the customer's S3 bucket (deny-all policy except the serverless private
+# The catalog's managed location is your S3 bucket (deny-all policy except the serverless private
 # endpoint and UC), so a successful run proves serverless reaches it through the NCC private endpoint rule.
 import argparse
 import os
@@ -47,6 +47,6 @@ for name, (rows, comment) in tables.items():
     spark.sql(f"COMMENT ON TABLE {target}.{name} IS '{comment}'")
     print(f"{target}.{name}: {df.count()} rows")
 
-# Show where the files live: the catalog's managed location in customer storage.
+# Show where the files live: the catalog's managed location in your storage.
 loc = spark.sql(f"DESCRIBE DETAIL {target}.request_history").select("location").first()[0]
 print(f"request_history files: {loc}")

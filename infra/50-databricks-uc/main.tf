@@ -1,4 +1,4 @@
-# Unity Catalog on customer-owned S3 (reached by serverless over the NCC private endpoint):
+# Unity Catalog on your own S3 (reached by serverless over the NCC private endpoint):
 #   IAM role for UC → storage credential → external location → catalog ops_demo (MANAGED LOCATION) → schemas,
 #   least-privilege grants for the account groups, serverless SQL warehouse.
 terraform {
@@ -66,7 +66,7 @@ locals {
 
 resource "databricks_storage_credential" "ops" {
   name    = "pngdemo-uc-s3"
-  comment = "UC access to the ops_demo managed location (customer S3, reached via the NCC private endpoint)"
+  comment = "UC access to the ops_demo managed location (your S3 bucket, reached via the NCC private endpoint)"
   aws_iam_role {
     role_arn = local.uc_role_arn
   }
@@ -132,12 +132,12 @@ resource "databricks_external_location" "ops" {
   depends_on      = [time_sleep.iam_propagation]
 }
 
-# ---------- Catalog with its managed location in customer S3 ----------
+# ---------- Catalog with its managed location in your S3 ----------
 
 resource "databricks_catalog" "ops" {
   name         = var.catalog_name
   storage_root = databricks_external_location.ops.url
-  comment      = "PNG demo: Delta history in customer S3 (Private Link) + MCP services for internal systems (private network gateway)"
+  comment      = "PNG demo: Delta history in your S3 bucket (Private Link) + MCP services for internal systems (private network gateway)"
   owner        = local.admins
 }
 

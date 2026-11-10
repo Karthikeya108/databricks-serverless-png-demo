@@ -2,13 +2,13 @@
 
 **Databricks Unity Gateway + Private Network Gateway (PNG) on AWS.** A Databricks App and agents running on
 **serverless compute** call internal MCP servers, REST APIs and databases **on behalf of the signed-in user**. The
-lakehouse data sits in customer-owned S3, reached over Private Link. Both private paths come from **one network
+lakehouse data sits in your own S3 bucket, reached over Private Link. Both private paths come from **one network
 connectivity configuration (NCC)**.
 
 | Path | NCC feature | Used for |
 |---|---|---|
-| Serverless → S3 | Private endpoint rule (Private Link) | Delta tables in the catalog's **managed location** in a customer bucket with a deny-all bucket policy |
-| Serverless → corporate network | **Private network gateway** (ENIs in a customer subnet) | Internal MCP servers, REST APIs and Postgres behind an internal ALB, in a hub-and-spoke network with optional AWS Network Firewall inspection |
+| Serverless → S3 | Private endpoint rule (Private Link) | Delta tables in the catalog's **managed location** in your bucket with a deny-all bucket policy |
+| Serverless → corporate network | **Private network gateway** (ENIs in your subnet) | Internal MCP servers, REST APIs and Postgres behind an internal ALB, in a hub-and-spoke network with optional AWS Network Firewall inspection |
 
 Identity is **Microsoft Entra ID + OAuth end to end**. Users sign in to Databricks with Entra, the app uses **user
 authorization**, and Unity Gateway calls the internal services with the **user's own Entra token** (per-user OAuth
@@ -28,19 +28,18 @@ connections). The services authorise each call per user.
 
 ## Who creates what (private network gateway)
 
-The customer creates the subnet and hands its ID to Databricks; Databricks only places the gateway's network
-interfaces in it. The network team keeps routes, firewall, DNS and security group, and can revoke access by removing
-the role.
+You create the subnet and hand its ID to Databricks; Databricks only places the gateway's network interfaces in
+it. You keep routes, firewall, DNS and security group, and can revoke access by removing the role.
 
 | Component | Created by | In this repository |
 |---|---|---|
-| VPC for the Databricks landing zone (`dbx-connect`) | Customer | `infra/20-aws-network` |
-| **Gateway subnet** (/28, dedicated to the gateway) | **Customer** | `infra/20-aws-network/vpcs.tf` |
-| Security group for the gateway's network interfaces | Customer | `infra/20-aws-network` (`pngdemo-png-sg`) |
-| Cross-account IAM role (manage network interfaces in this VPC only) | Customer | `infra/40-databricks-network` (`pngdemo-png-role`) |
-| Routes, Transit Gateway, firewall, private DNS zone | Customer | `infra/20-aws-network` |
-| Gateway object (subnet ID, security group ID, role ARN, destinations) | Customer, via the Databricks account API / Terraform | `infra/40-databricks-network` |
-| **Network interfaces in the gateway subnet** | **Databricks**, through the role | tagged `Vendor = Databricks`; owned by the customer account, with the customer's security group |
+| VPC for the Databricks landing zone (`dbx-connect`) | You | `infra/20-aws-network` |
+| **Gateway subnet** (/28, dedicated to the gateway) | **You** | `infra/20-aws-network/vpcs.tf` |
+| Security group for the gateway's network interfaces | You | `infra/20-aws-network` (`pngdemo-png-sg`) |
+| Cross-account IAM role (manage network interfaces in this VPC only) | You | `infra/40-databricks-network` (`pngdemo-png-role`) |
+| Routes, Transit Gateway, firewall, private DNS zone | You | `infra/20-aws-network` |
+| Gateway object (subnet ID, security group ID, role ARN, destinations) | You, via the Databricks account API / Terraform | `infra/40-databricks-network` |
+| **Network interfaces in the gateway subnet** | **Databricks**, through the role | tagged `Vendor = Databricks`; owned by your AWS account, with your security group |
 
 ## Repository layout
 
@@ -138,7 +137,7 @@ Optional: `infra/60-observability` adds the evidence dashboard and saved queries
 - **Gateway on/off:** `enable_png` in `infra/40-databricks-network` shows the "before" state.
 - **Gateway traffic mode:** `png_traffic_mode = "ALL_TRAFFIC"` in `infra/40-databricks-network` together with
   `png_allow_internet = true` in `infra/20-aws-network` routes serverless internet egress through the gateway, the
-  customer firewall and NAT. Back to `SPECIFIC_DESTINATIONS` for the default setup.
+  firewall and NAT. Back to `SPECIFIC_DESTINATIONS` for the default setup.
 
 ## Teardown
 

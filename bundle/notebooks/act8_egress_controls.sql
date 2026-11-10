@@ -6,12 +6,12 @@
 -- MAGIC destinations: allowlisted package index and code host, two sites that are **not** allowlisted, a foreign S3 bucket
 -- MAGIC (exfiltration channel), an internal service through the gateway, and an IP echo service.
 -- MAGIC
--- MAGIC | | Option A: Databricks network policy | Option B: gateway ALL_TRAFFIC + customer firewall |
+-- MAGIC | | Option A: Databricks network policy | Option B: gateway ALL_TRAFFIC + your firewall |
 -- MAGIC |---|---|---|
 -- MAGIC | Who decides | Databricks account admin | Network/security team |
 -- MAGIC | Allowlist | `services.yaml` → policy | `services.yaml` → firewall rules |
--- MAGIC | Logs | Denials in `system.access.outbound_network` | Allow **and** deny with hostname, in the customer's logging |
--- MAGIC | Source IP on the internet | Databricks egress IPs | Customer NAT IP |
+-- MAGIC | Logs | Denials in `system.access.outbound_network` | Allow **and** deny with hostname, in your own logging |
+-- MAGIC | Source IP on the internet | Databricks egress IPs | Your NAT IP |
 
 -- COMMAND ----------
 
@@ -64,10 +64,10 @@ LIMIT 50
 -- COMMAND ----------
 
 -- MAGIC %md
--- MAGIC ## 3. Option B evidence: the customer firewall
+-- MAGIC ## 3. Option B evidence: your firewall
 -- MAGIC In CloudWatch (dashboard `pngdemo-private-network-gateway`, or saved query
 -- MAGIC "3 Firewall verdicts for the gateway subnet"): `allowed … sni=pypi.org`, `blocked … sni=example.com`, and the
--- MAGIC customer NAT IP as the source the internet sees.
+-- MAGIC your NAT IP as the source the internet sees.
 -- MAGIC
 -- MAGIC ## 4. All runs in detail
 

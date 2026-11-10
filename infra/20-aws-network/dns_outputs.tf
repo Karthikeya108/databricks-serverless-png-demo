@@ -49,7 +49,7 @@ output "transit_gateway_id" {
 }
 
 output "nat_public_ip" {
-  description = "Source IP of all internet egress from the customer network (and the gateway in ALL_TRAFFIC mode)."
+  description = "Source IP of all internet egress from your network (and the gateway in ALL_TRAFFIC mode)."
   value       = aws_eip.nat.public_ip
 }
 

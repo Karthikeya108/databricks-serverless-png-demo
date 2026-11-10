@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shows, from the customer's side, that Databricks serverless traffic arrives through the private network gateway.
+# Shows, from your network's side, that Databricks serverless traffic arrives through the private network gateway.
 # Terminal fallback for the CloudWatch dashboard (infra/60-observability).
 #
 #   ./scripts/show-traffic.sh enis          # the gateway's network interfaces in your subnet (your account, your SG)

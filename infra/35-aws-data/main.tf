@@ -1,4 +1,4 @@
-# customer-owned S3 bucket for the catalog's managed location, plus evidence logging.
+# Your S3 bucket for the catalog's managed location, plus evidence logging.
 #
 # The bucket policy (deny everything except the serverless private endpoint, the UC control plane and the admin role)
 # lives in infra/40-databricks-network, because it needs the VPC endpoint ID that Databricks creates for the NCC rule.

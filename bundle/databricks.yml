@@ -28,7 +28,7 @@ resources:
   jobs:
     generate_ops_data:
       name: pngdemo-generate-ops-data
-      description: Writes the historical Delta tables to the catalog managed location (customer S3 via the NCC private endpoint)
+      description: Writes the historical Delta tables to the catalog managed location (your S3 bucket via the NCC private endpoint)
       tasks:
         - task_key: generate
           spark_python_task:

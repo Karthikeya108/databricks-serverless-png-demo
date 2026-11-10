@@ -47,7 +47,7 @@ locals {
 
 # ---------- Workspace ----------
 
-# Serverless workspace: Databricks-managed compute and default storage; no customer VPC,
+# Serverless workspace: Databricks-managed compute and default storage; no VPC of your own,
 # root bucket or cross-account role.
 resource "databricks_mws_workspaces" "this" {
   account_id     = var.databricks_account_id
@@ -79,7 +79,7 @@ resource "databricks_group_member" "demo" {
 
 # ---------- Unity Catalog metastore ----------
 
-# Own metastore, no root storage: each catalog gets a managed location in customer S3 later.
+# Own metastore, no root storage: each catalog gets a managed location in your S3 later.
 resource "databricks_metastore" "this" {
   name          = "${var.prefix}-euc1-ms"
   region        = var.region

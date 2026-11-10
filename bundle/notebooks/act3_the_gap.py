@@ -3,14 +3,14 @@
 # MAGIC # The gap, and how the gateway closes it
 # MAGIC
 # MAGIC Serverless compute runs in the **Databricks** network. The internal load balancer has private addresses
-# MAGIC (`10.80.x.x`) in the **customer** network. The private network gateway connects the two, but only for the
+# MAGIC (`10.80.x.x`) in **your** network. The private network gateway connects the two, but only for the
 # MAGIC destinations it's configured with: here one DNS suffix, the internal domain.
 # MAGIC
 # MAGIC Same load balancer, two names:
 # MAGIC
 # MAGIC | Name | Matches the gateway destination? |
 # MAGIC |---|---|
-# MAGIC | `servicedesk.<internal domain>` | yes (suffix) → routed into the customer network |
+# MAGIC | `servicedesk.<internal domain>` | yes (suffix) → routed into your network |
 # MAGIC | the load balancer's AWS name `internal-….elb.amazonaws.com` | no → not routed through the gateway |
 
 # COMMAND ----------

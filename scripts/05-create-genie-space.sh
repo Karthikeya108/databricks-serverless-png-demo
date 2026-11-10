@@ -13,7 +13,7 @@ databricks workspace mkdirs "$FOLDER"
 SPACE=$(databricks genie create-space -o json --json "$(jq -n --arg wh "$WH" --arg p "$FOLDER" \
   --arg s "$(jq -c . "$ROOT/bundle/genie/genie_space.json")" '{
     warehouse_id: $wh, parent_path: $p, serialized_space: $s, title: "Operations history",
-    description: "Historical service requests, SLA and asset uptime (Delta in customer S3 via Private Link)"}')" \
+    description: "Historical service requests, SLA and asset uptime (Delta in your S3 bucket via Private Link)"}')" \
   | jq -r .space_id)
 
 databricks api patch "/api/2.0/permissions/genie/$SPACE" --json '{"access_control_list":[

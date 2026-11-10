@@ -41,7 +41,7 @@ ORDER BY below_reorder DESC
 -- COMMAND ----------
 
 -- MAGIC %md ## 3. Join live inventory with the lakehouse history
--- MAGIC Postgres (via the gateway) joined with Delta tables in customer S3 (via Private Link): which sites with the
+-- MAGIC Postgres (via the gateway) joined with Delta tables in your S3 bucket (via Private Link): which sites with the
 -- MAGIC worst SLA also run low on spare parts?
 
 -- COMMAND ----------

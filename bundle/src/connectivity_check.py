@@ -1,6 +1,6 @@
 # Databricks serverless job: checks both private paths of the NCC from serverless compute.
 #   1. Private network gateway -> internal MCP servers (expects 200 on /healthz, 401 on /mcp without a token)
-#   2. Private Link -> catalog managed location in customer S3 (reads a Delta table)
+#   2. Private Link -> catalog managed location in your S3 bucket (reads a Delta table)
 import argparse
 import socket
 import urllib.error

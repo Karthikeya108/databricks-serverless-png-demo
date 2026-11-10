@@ -4,7 +4,7 @@
 #   egress_mode = "dry_run"   RESTRICTED rules evaluated and logged, nothing blocked
 #   egress_mode = "enforced"  RESTRICTED: only the allowlist below (+ Unity Catalog locations and NCC destinations)
 #
-# The allowlist comes from services.yaml: egress_allowlist.databricks_zone (the same list the customer firewall uses in
+# The allowlist comes from services.yaml: egress_allowlist.databricks_zone (the same list your firewall uses in
 # ALL_TRAFFIC mode, so both egress options enforce one policy) plus the internal services approved for the zone.
 # Denials (and dry-run would-be denials) are logged in system.access.outbound_network.
 #   terraform apply -var egress_mode=enforced     (or persist it in egress.auto.tfvars)

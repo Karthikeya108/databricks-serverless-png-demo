@@ -2,7 +2,7 @@
 
 Every downstream call uses the *user's* token from the X-Forwarded-Access-Token header:
   - Foundation Model API (agent reasoning)
-  - Genie (history in Delta, customer S3 via NCC Private Link)
+  - Genie (history in Delta, your S3 bucket via NCC Private Link)
   - Unity Gateway MCP services (internal systems via the private network gateway; the MCP server
     receives the user's own Entra token from the per-user OAuth connection)
 """

@@ -5,7 +5,7 @@
 # Destinations (one per class):
 #   allowlisted package index / code host, a site that is NOT allowlisted, a public S3 bucket that is not ours
 #   (exfiltration channel), the internal services through the private network gateway, and an IP echo service that
-#   shows the source IP the internet sees (Databricks egress IPs vs. the customer's NAT IP).
+#   shows the source IP the internet sees (Databricks egress IPs vs. your NAT IP).
 import argparse
 import datetime as dt
 import time

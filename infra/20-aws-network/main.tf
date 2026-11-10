@@ -1,4 +1,4 @@
-# customer landing-zone simulation: hub-and-spoke network with inspection and central egress.
+# Landing-zone simulation (your corporate network): hub-and-spoke network with inspection and central egress.
 #
 #   dbx-connect VPC   (Databricks landing zone: private network gateway subnet)  ┐
 #   internal-services VPC (corporate network: internal ALB, services, Postgres)   ├─ Transit Gateway
