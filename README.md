@@ -14,17 +14,74 @@ Identity is **Microsoft Entra ID + OAuth end to end**. Users sign in to Databric
 authorization**, and Unity Gateway calls the internal services with the **user's own Entra token** (per-user OAuth
 connections). The services authorise each call per user.
 
+```mermaid
+flowchart LR
+  user(["User<br/>(Entra ID sign-in)"])
+
+  subgraph DBX["Databricks (serverless, Databricks network)"]
+    direction TB
+    ingress{{"Ingress control<br/>who · from where · to what"}}
+    app["Databricks App<br/>(user authorization)"]
+    genie["Genie / SQL warehouse<br/>notebooks · jobs"]
+    ug["Unity Gateway<br/>MCP services<br/>(per-user OAuth)"]
+    uc[("Unity Catalog<br/>grants · connections<br/>foreign catalog")]
+    policy{{"Network policy<br/>egress allowlist"}}
+    subgraph NCC["NCC (one object, two private paths)"]
+      pe["Private endpoint rule<br/>S3"]
+      png["Private network gateway<br/>destination: *.internal domain"]
+    end
+  end
+
+  subgraph AWS["Your AWS account"]
+    direction TB
+    s3[("S3 bucket<br/>deny-all policy<br/>Delta tables")]
+    subgraph CONNECT["dbx-connect VPC"]
+      enis["Gateway interfaces<br/>gateway subnet /28<br/>your security group"]
+    end
+    tgw(("Transit<br/>Gateway"))
+    subgraph INSPECT["inspection VPC"]
+      fw{{"Network Firewall<br/>hostname rules · logs"}}
+    end
+    subgraph SVC["internal-services VPC"]
+      alb["Internal ALB<br/>TLS *.internal domain"]
+      mcp["MCP servers<br/>servicedesk · assets"]
+      rest["REST APIs<br/>orders · legacy"]
+      rds[("RDS Postgres")]
+    end
+    subgraph EGRESS["egress VPC"]
+      nat["NAT gateway<br/>your public IP"]
+    end
+  end
+
+  internet(("Internet"))
+
+  user --> ingress --> app
+  app --> genie
+  app --> ug
+  uc -. governs .- genie
+  uc -. governs .- ug
+  genie --> pe --> s3
+  ug --> png
+  genie --> png
+  png --> enis --> tgw --> fw
+  fw --> alb
+  alb --> mcp
+  alb --> rest
+  fw --> rds
+  genie --> policy -->|"allowed hostnames<br/>(Databricks egress IPs)"| internet
+  fw -.->|"ALL_TRAFFIC mode<br/>allowed hostnames"| nat -.-> internet
+
+  classDef control fill:#fff4e5,stroke:#d9822b,color:#1b1f24
+  classDef dbx fill:#eef3fb,stroke:#2457c5,color:#1b1f24
+  classDef aws fill:#f3f7f0,stroke:#3d7a2a,color:#1b1f24
+  class ingress,policy,fw control
+  class app,genie,ug,uc,pe,png dbx
+  class s3,enis,alb,mcp,rest,rds,nat aws
 ```
- Databricks App (user authorization)
-   ├─ Genie ── serverless SQL ── NCC private endpoint ──────────────► S3 (deny-all bucket policy) ── Delta tables
-   └─ Unity Gateway MCP services (per-user OAuth, the user's Entra token)
-          └─ serverless ── NCC private network gateway ──► dbx-connect VPC ── Transit Gateway
-                                                              ├─(optional) inspection VPC: AWS Network Firewall
-                                                              └─► internal-services VPC: internal ALB (TLS)
-                                                                    ├─ servicedesk / assets   (MCP, Entra)
-                                                                    ├─ orders / legacy        (REST APIs)
-                                                                    └─ Postgres (RDS)
-```
+
+Orange: control points. **Ingress control** decides who reaches Databricks, from where. The **network policy** and the
+**Network Firewall** decide what serverless may reach. Solid lines: default setup. Dotted line: optional ALL_TRAFFIC
+mode, where serverless internet egress goes through your firewall and NAT.
 
 ## Who creates what (private network gateway)
 
