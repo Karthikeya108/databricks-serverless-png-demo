@@ -87,19 +87,21 @@ function add(role, text) {
   d.innerHTML = role === 'bot' ? render(text) : esc(text); $('log').appendChild(d); $('log').scrollTop = 1e9;
 }
 async function status() {
-  const r = await fetch('api/status'); const s = await r.json();
+  let s;
+  try { const r = await fetch('api/status'); s = await r.json(); }
+  catch (e) { $('status').innerHTML = '<div><span class="bad">● status unavailable: ' + esc(e.message) + '</span></div>'; return; }
   $('who').textContent = s.user ? 'Signed in as ' + s.user : '';
-  renderStatus(s.services);
-  $('status').innerHTML += (s.services?.some(x => !x.ok) ? `<div><a href="${s.mcp_page}" target="_blank">Sign in / check access in Unity Gateway → MCPs</a></div>` : '');
+  renderStatus(s.services, s.mcp_page);
 }
 function setBusy(on) {
   $('chat').classList.toggle('busy', on); $('send').disabled = on; $('q').disabled = on;
   document.querySelectorAll('.chip').forEach(c => c.disabled = on);
   $('send').innerHTML = on ? '<span class="spin" style="border-color:#ffffff66;border-top-color:#fff"></span>' : 'Send';
 }
-function renderStatus(services) {
+function renderStatus(services, mcpPage) {
   $('status').innerHTML = (services || []).map(x =>
-    `<div><span>${esc(x.service)}</span><span class="${x.ok ? 'ok' : 'bad'}">${x.ok ? '● reachable · ' : '● '}${esc(x.detail)}</span></div>`).join('');
+    `<div><span>${esc(x.service)}</span><span class="${x.ok ? 'ok' : 'bad'}">${x.ok ? '● reachable · ' : '● '}${esc(x.detail)}</span></div>`).join('')
+    + ((services || []).some(x => !x.ok) && mcpPage ? `<div><a href="${mcpPage}" target="_blank">Sign in / check access in Unity Gateway → MCPs</a></div>` : '');
 }
 async function ask(q) {
   add('user', q); history.push({role: 'user', content: q}); setBusy(true);
@@ -112,7 +114,7 @@ async function ask(q) {
   const steps = {}; let answer = null;
   const handle = ev => {
     if (ev.type === 'phase') phase(ev.text);
-    else if (ev.type === 'status') renderStatus(ev.services);
+    else if (ev.type === 'status') renderStatus(ev.services, ev.mcp_page);
     else if (ev.type === 'tool_start') {
       phase(`Calling ${ev.tool} · ${ev.path}`);
       const el = document.createElement('div'); el.className = 'step run';

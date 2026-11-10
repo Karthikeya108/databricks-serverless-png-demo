@@ -26,6 +26,22 @@ connections). The services authorise each call per user.
                                                                     └─ Postgres (RDS)
 ```
 
+## Who creates what (private network gateway)
+
+The customer creates the subnet and hands its ID to Databricks; Databricks only places the gateway's network
+interfaces in it. The network team keeps routes, firewall, DNS and security group, and can revoke access by removing
+the role.
+
+| Component | Created by | In this repository |
+|---|---|---|
+| VPC for the Databricks landing zone (`dbx-connect`) | Customer | `infra/20-aws-network` |
+| **Gateway subnet** (/28, dedicated to the gateway) | **Customer** | `infra/20-aws-network/vpcs.tf` |
+| Security group for the gateway's network interfaces | Customer | `infra/20-aws-network` (`pngdemo-png-sg`) |
+| Cross-account IAM role (manage network interfaces in this VPC only) | Customer | `infra/40-databricks-network` (`pngdemo-png-role`) |
+| Routes, Transit Gateway, firewall, private DNS zone | Customer | `infra/20-aws-network` |
+| Gateway object (subnet ID, security group ID, role ARN, destinations) | Customer, via the Databricks account API / Terraform | `infra/40-databricks-network` |
+| **Network interfaces in the gateway subnet** | **Databricks**, through the role | tagged `Vendor = Databricks`; owned by the customer account, with the customer's security group |
+
 ## Repository layout
 
 | Path | Contents |
@@ -113,6 +129,8 @@ Optional: `infra/60-observability` adds the evidence dashboard and saved queries
     calls by user and source IP, gateway subnet → services (VPC flow logs), firewall verdicts, rejected connections
     and requests per service.
   - Saved queries in CloudWatch Logs Insights, folder `pngdemo`, for the same views.
+  - Gateway configuration as Databricks has it (state, mode, destinations, subnet, security group, role):
+    `./scripts/show-gateway.sh`.
   - Terminal: `./scripts/show-traffic.sh enis` (the gateway's network interfaces in your subnet) and
     `./scripts/show-traffic.sh all` (calls and flows live).
   - All views filter on the gateway subnet, not on fixed IPs. The service log is near real time; flow and firewall

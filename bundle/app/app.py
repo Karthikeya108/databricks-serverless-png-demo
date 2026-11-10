@@ -111,21 +111,31 @@ def _tool_prefix(service: str) -> str:
 
 
 async def open_mcp_sessions(stack: AsyncExitStack, token: str) -> tuple[list[dict], dict, list[dict]]:
-    """Connect to each MCP service as the user. Returns (openai tools, name->(session, tool), status)."""
+    """Connect to each MCP service as the user. Returns (openai tools, name->(session, tool), status).
+
+    Each service gets its own exit stack: a service the user can't use (not signed in, no EXECUTE, no network path)
+    is closed right away and reported in the status, without affecting the other services or the chat."""
     tools, routes, status = [], {}, []
     for service in MCP_SERVICES:
         url = f"{HOST}/ai-gateway/mcp-services/{service}"
+        svc = AsyncExitStack()
         try:
-            read, write, _ = await stack.enter_async_context(
+            read, write, _ = await svc.enter_async_context(
                 streamablehttp_client(url, headers={"Authorization": f"Bearer {token}"}, timeout=30))
-            session = await stack.enter_async_context(ClientSession(read, write))
+            session = await svc.enter_async_context(ClientSession(read, write))
             await session.initialize()
             listed = await session.list_tools()
-        except Exception as e:  # no EXECUTE, not signed in, or no network path
-            msg = _flatten_error(e)
+        except BaseException as e:  # noqa: BLE001  (anyio raises exception groups)
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
+            # The transport's real error (e.g. HTTP 401) often surfaces only when the session is closed; the error
+            # seen here is then just the resulting cancellation.
+            close_err = await _close_quietly(svc)
+            msg = _flatten_error(close_err if close_err is not None and _is_cancel(e) else e)
             log.warning("MCP %s unavailable: %s", service, msg)
             status.append({"service": service, "ok": False, "detail": msg})
             continue
+        stack.push_async_callback(_close_quietly, svc)
         status.append({"service": service, "ok": True, "detail": f"{len(listed.tools)} tools"})
         for t in listed.tools:
             name = f"{_tool_prefix(service)}__{t.name}"
@@ -136,11 +146,37 @@ async def open_mcp_sessions(stack: AsyncExitStack, token: str) -> tuple[list[dic
     return tools, routes, status
 
 
+async def _close_quietly(stack: AsyncExitStack) -> BaseException | None:
+    try:
+        await stack.aclose()
+    except BaseException as e:  # noqa: BLE001  (a failed session may raise again on close)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        log.debug("closing MCP session: %s", _flatten_error(e))
+        return e
+    return None
+
+
+def _is_cancel(e: BaseException) -> bool:
+    while isinstance(e, BaseExceptionGroup) and e.exceptions:
+        e = e.exceptions[0]
+    return isinstance(e, asyncio.CancelledError) or type(e).__name__ == "CancelledError"
+
+
 def _flatten_error(e: BaseException) -> str:
     while isinstance(e, BaseExceptionGroup) and e.exceptions:
         e = e.exceptions[0]
     if isinstance(e, httpx.HTTPStatusError):
-        return f"HTTP {e.response.status_code}: {e.response.text[:300]}"
+        code = e.response.status_code
+        if code == 401:
+            return "Not signed in to this service yet: sign in once under Unity Gateway → MCPs"
+        if code == 403:
+            return "No access: ask for EXECUTE on this MCP service"
+        try:  # streamed responses may not have a readable body
+            body = e.response.text[:200]
+        except Exception:  # noqa: BLE001
+            body = ""
+        return f"HTTP {code}{': ' + body if body else ''}"
     return f"{type(e).__name__}: {e}"[:400]
 
 
@@ -179,7 +215,7 @@ async def run_agent(token: str, messages: list[dict]):
             httpx.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=120))
         yield {"type": "phase", "text": "Connecting to internal systems as you (Unity Gateway)…"}
         mcp_tools, routes, status = await open_mcp_sessions(stack, token)
-        yield {"type": "status", "services": status}
+        yield {"type": "status", "services": status, "mcp_page": f"{HOST}/ai-gateway/mcps"}
         tools = [GENIE_TOOL] + mcp_tools
 
         for step in range(MAX_STEPS):

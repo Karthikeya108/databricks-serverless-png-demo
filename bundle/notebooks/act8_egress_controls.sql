@@ -16,6 +16,8 @@
 -- COMMAND ----------
 
 -- MAGIC %md ## 1. Side by side: what each setup lets through
+-- MAGIC The last column is always the most recent run: start one live with
+-- MAGIC `databricks bundle run egress_check --params label="live"` (≈ 30 s), then re-run this cell.
 
 -- COMMAND ----------
 
@@ -34,7 +36,9 @@ pick AS (
          max_by(CASE WHEN result = 'reachable' THEN '✓' ELSE '✗' END || CASE WHEN url LIKE '%checkip%' THEN ' ' || regexp_extract(detail, '([0-9.]+)$', 1) ELSE '' END,
                 run_at) FILTER (WHERE label LIKE '4 %') AS `B: ALL_TRAFFIC + firewall`,
          max_by(CASE WHEN result = 'reachable' THEN '✓' ELSE '✗' END || CASE WHEN url LIKE '%checkip%' THEN ' ' || regexp_extract(detail, '([0-9.]+)$', 1) ELSE '' END,
-                run_at) FILTER (WHERE label LIKE '6 %') AS `today: policy + firewall`
+                run_at) FILTER (WHERE label LIKE '6 %') AS `today: policy + firewall`,
+         max_by(CASE WHEN result = 'reachable' THEN '✓' ELSE '✗' END || CASE WHEN url LIKE '%checkip%' THEN ' ' || regexp_extract(detail, '([0-9.]+)$', 1) ELSE '' END,
+                run_at) FILTER (WHERE run_at = (SELECT max(run_at) FROM ops_demo.lakehouse.egress_checks)) AS `latest run`
   FROM runs
   GROUP BY destination
 )
