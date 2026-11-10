@@ -41,6 +41,8 @@ it. You keep routes, firewall, DNS and security group, and can revoke access by 
 | Gateway object (subnet ID, security group ID, role ARN, destinations) | You, via the Databricks account API / Terraform | `infra/40-databricks-network` |
 | **Network interfaces in the gateway subnet** | **Databricks**, through the role | tagged `Vendor = Databricks`; owned by your AWS account, with your security group |
 
+Onboarding a new internal service (MCP server, REST API, database): [docs/onboarding.md](docs/onboarding.md).
+
 ## Repository layout
 
 | Path | Contents |
