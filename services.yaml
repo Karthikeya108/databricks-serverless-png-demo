@@ -42,3 +42,4 @@ egress_allowlist:
     - files.pythonhosted.org
     - github.com
     - api.github.com
+    - checkip.amazonaws.com # shows the source IP the internet sees

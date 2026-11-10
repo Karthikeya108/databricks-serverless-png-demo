@@ -7,6 +7,8 @@ variables:
     default: ops_demo
   demo_users:
     description: UPNs owning seeded records, comma-separated, persona A first (must match demo_users in infra/30-aws-services)
+  domain:
+    description: Internal DNS domain of the services (domain in services.yaml)
   service_hosts:
     description: Internal service hostnames, comma-separated (hosts of `terraform output service_urls` in infra/30-aws-services)
   genie_space_id:
@@ -49,6 +51,26 @@ resources:
           spark_python_task:
             python_file: src/connectivity_check.py
             parameters: ["--mcp_hosts", "${var.service_hosts}", "--table", "${var.catalog}.lakehouse.sites"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+      permissions:
+        - group_name: pngdemo-admins
+          level: CAN_MANAGE
+
+    egress_check:
+      name: pngdemo-egress-check
+      description: From serverless, tests which internet destinations are reachable and with which source IP (one run per egress setup)
+      parameters:
+        - name: label
+          default: baseline
+      tasks:
+        - task_key: check
+          spark_python_task:
+            python_file: src/egress_check.py
+            parameters: ["--label", "{{job.parameters.label}}", "--internal_host", "servicedesk.${var.domain}", "--table", "${var.catalog}.lakehouse.egress_checks"]
           environment_key: default
       environments:
         - environment_key: default

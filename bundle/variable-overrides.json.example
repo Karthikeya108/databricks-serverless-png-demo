@@ -1,5 +1,6 @@
 {
   "demo_users": "user.a@example.com,user.b@example.com",
   "service_hosts": "servicedesk.<domain>,assets.<domain>,orders.<domain>,legacy.<domain>",
-  "genie_space_id": "<genie space id>"
+  "genie_space_id": "<genie space id>",
+  "domain": "<domain>"
 }

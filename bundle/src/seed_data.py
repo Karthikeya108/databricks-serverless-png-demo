@@ -58,11 +58,23 @@ def assets() -> list[dict]:
     return out
 
 
+def _requesters(demo_users: list[str] | None) -> tuple[list[str], callable]:
+    """Requester pool with a FIXED length (persona A + 40 employees), so adding persona B doesn't change any random
+    draw. Persona B takes over the records of one fictitious employee."""
+    users = demo_users or ["user.a@example.com", "user.b@example.com"]
+    pool = [users[0]] + [f"employee{n:03d}@example.com" for n in range(1, 41)]
+    persona_b = users[1] if len(users) > 1 else None
+
+    def who(name: str) -> str:
+        return persona_b if persona_b and name == "employee007@example.com" else name
+    return pool, who
+
+
 def requests(demo_users: list[str] | None = None) -> list[dict]:
     """~3000 requests over 18 months. The newest ~60 are still open (the 'live' service desk)."""
     rng = random.Random(SEED + 1)
     users = demo_users or ["user.a@example.com", "user.b@example.com"]
-    requesters = users + [f"employee{n:03d}@example.com" for n in range(1, 41)]
+    requesters, who = _requesters(demo_users)
     all_assets = assets()
     start = datetime.combine(TODAY - timedelta(days=540), datetime.min.time(), tzinfo=timezone.utc)
     out = []
@@ -83,7 +95,7 @@ def requests(demo_users: list[str] | None = None) -> list[dict]:
                 priority=priority,
                 site_id=asset["site_id"],
                 asset_id=asset["asset_id"],
-                requester=rng.choice(requesters),
+                requester=who(rng.choice(requesters)),
                 status=rng.choice(OPEN_STATUSES) if is_open else "Resolved",
                 opened_at=opened.isoformat(),
                 closed_at=None if is_open else (opened + timedelta(hours=hours)).isoformat(),
@@ -96,6 +108,12 @@ def requests(demo_users: list[str] | None = None) -> list[dict]:
     demo.update(request_id="REQ-1042", priority="P1", site_id="BER-01", status="New", requester=users[0])
     demo_asset = next(a for a in all_assets if a["site_id"] == "BER-01")
     demo.update(asset_id=demo_asset["asset_id"], title=f"Hardware fault: {demo_asset['asset_type']} at BER-01")
+    # Persona B (if any) also gets an open request at BER-01, so "my open requests" differs between the personas.
+    if len(users) > 1:
+        b = out[n - 1 - 29]
+        b_asset = [a for a in all_assets if a["site_id"] == "BER-01"][1]
+        b.update(priority="P2", site_id="BER-01", status="In progress", requester=users[1], asset_id=b_asset["asset_id"],
+                 title=f"Preventive maintenance: {b_asset['asset_type']} at BER-01")
     # Keep IDs unique: the original REQ-1042 (historic) is renamed.
     for r in out:
         if r is not demo and r["request_id"] == "REQ-1042":
@@ -141,8 +159,7 @@ def parts() -> list[dict]:
 def orders(demo_users: list[str] | None = None) -> list[dict]:
     """~200 purchase orders for spare parts, linked to assets (the 'orders' API, Entra-protected)."""
     rng = random.Random(SEED + 4)
-    users = demo_users or ["user.a@example.com", "user.b@example.com"]
-    requesters = users + [f"employee{n:03d}@example.com" for n in range(1, 41)]
+    requesters, who = _requesters(demo_users)
     all_assets = assets()
     out = []
     for i in range(1, 201):
@@ -153,7 +170,7 @@ def orders(demo_users: list[str] | None = None) -> list[dict]:
         out.append(dict(
             order_id=f"PO-{i:04d}", asset_id=asset["asset_id"], site_id=asset["site_id"], part_no=part_no,
             description=desc, qty=qty, total_eur=round(qty * rng.uniform(40, 900), 2),
-            status=rng.choices(ORDER_STATUSES, [15, 20, 25, 40])[0], requested_by=rng.choice(requesters),
+            status=rng.choices(ORDER_STATUSES, [15, 20, 25, 40])[0], requested_by=who(rng.choice(requesters)),
             created_at=created.isoformat(),
         ))
     return out

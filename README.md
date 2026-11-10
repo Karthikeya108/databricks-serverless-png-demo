@@ -35,13 +35,15 @@ connections). The services authorise each call per user.
 | `infra/20-aws-network` | Hub and spoke: dbx-connect, inspection, internal-services and egress VPCs, Transit Gateway, Network Firewall (off by default), private DNS |
 | `infra/21-network-smoke-test` | Reusable smoke test with real traffic from the gateway subnet |
 | `infra/25-certificate` | Public wildcard certificate (Let's Encrypt via DNS-01) imported into ACM |
-| `infra/30-aws-services` | Image build (CodeBuild), ECS Fargate services, internal ALB, RDS Postgres |
+| `infra/30-aws-services` | Image build (CodeBuild), ECS Fargate services, internal ALB, RDS Postgres, database seeding function |
 | `infra/35-aws-data` | Data bucket and access logging |
 | `infra/40-databricks-network` | NCC, S3 private endpoint rule + bucket policy, private network gateway + cross-account role, workspace binding |
+| `infra/45-databricks-egress` | Serverless network policy (egress control) attached to the workspace: `off`, `dry_run` or `enforced`, allowlist from `services.yaml` |
 | `infra/50-databricks-uc` | Storage credential, external location, catalog, schemas, grants, serverless SQL warehouse |
+| `infra/60-observability` | CloudWatch dashboard and saved Logs Insights queries: evidence that serverless traffic arrives through the gateway, per user |
 | `services/` | MCP servers and REST APIs (one image, selected by `SERVER=`), Entra token validation |
-| `bundle/` | Databricks Asset Bundle: data and connectivity jobs, MCP services, the Operations Assistant app, Genie space definition |
-| `scripts/` | Entra app setup, UC connections, Genie space, firewall toggle |
+| `bundle/` | Databricks Asset Bundle: data, connectivity and egress-check jobs, demo notebooks, MCP services, the Operations Assistant app, Genie space definition |
+| `scripts/` | Entra app setup, UC connections, Genie space, Postgres federation, firewall toggle, pre-demo check, live traffic view |
 
 ## Prerequisites
 
@@ -85,22 +87,50 @@ Run each stack with `terraform -chdir=infra/<stack> init && terraform -chdir=inf
     `databricks bundle deploy && databricks bundle run ops_assistant`.
 12. Each user signs in once per MCP service (Unity Gateway → MCPs, or on the connection page).
 
+13. `./scripts/07-postgres-federation.sh`: seeds the inventory database (on the AWS side) and creates the read-only
+    connection and the foreign catalog `ops_inventory`.
+14. Optional: `infra/45-databricks-egress` (network policy). Apply it ahead of the demo, then run
+    `./scripts/verify.sh --restart-warehouse`.
+
 Check connectivity with `databricks bundle run connectivity_check` (all services through the gateway).
+
+Optional: `infra/60-observability` adds the evidence dashboard and saved queries (apply after `30`).
 
 ## Operating the demo
 
-- **Firewall:** `./scripts/firewall.sh on|off|status`. It's off by default to save cost; switch it on the day before
+- **Pre-demo check:** `./scripts/verify.sh` checks logins, network, gateway, policy, credentials, app, warehouse and
+  Postgres, and warms up the MCP services. Run it about 30 minutes before the demo.
+- **Notebooks** (bundle, `notebooks/`): `act6_beyond_mcp` (REST API from SQL, Postgres via federation, join with the
+  lakehouse), `act7_route_is_not_permission` (direct calls without a token; firewall `per_service` mode),
+  `act8_egress_controls` (side-by-side comparison of egress setups and the denial log).
+- **Egress check:** `databricks bundle run egress_check --params label="<setup>"` records which destinations are
+  reachable from serverless, and with which source IP, in `ops_demo.lakehouse.egress_checks`.
+
+- **Firewall:** `./scripts/firewall.sh on|off|per-service|network|status`. It's off by default to save cost; switch it on the day before
   the demo.
+- **Show that traffic comes through the gateway:**
+  - Dashboard `pngdemo-private-network-gateway` (URL: `terraform -chdir=infra/60-observability output dashboard_url`):
+    calls by user and source IP, gateway subnet → services (VPC flow logs), firewall verdicts, rejected connections
+    and requests per service.
+  - Saved queries in CloudWatch Logs Insights, folder `pngdemo`, for the same views.
+  - Terminal: `./scripts/show-traffic.sh enis` (the gateway's network interfaces in your subnet) and
+    `./scripts/show-traffic.sh all` (calls and flows live).
+  - All views filter on the gateway subnet, not on fixed IPs. The service log is near real time; flow and firewall
+    logs arrive with a delay of 1–10 minutes.
 - **Gateway on/off:** `enable_png` in `infra/40-databricks-network` shows the "before" state.
+- **Gateway traffic mode:** `png_traffic_mode = "ALL_TRAFFIC"` in `infra/40-databricks-network` together with
+  `png_allow_internet = true` in `infra/20-aws-network` routes serverless internet egress through the gateway, the
+  customer firewall and NAT. Back to `SPECIFIC_DESTINATIONS` for the default setup.
 
 ## Teardown
 
 Destroy in reverse order of deployment:
 
 1. Bundle: `cd bundle && databricks bundle destroy` (app, MCP services, jobs).
-2. UC connections in `ops_demo.tools`: `databricks connections delete ops_demo.tools.<service>_conn`.
+2. UC objects created by scripts: connections in `ops_demo.tools` (`databricks connections delete ops_demo.tools.<service>_conn`),
+   the foreign catalog `ops_inventory` and the connection `pngdemo_pg`.
 3. Genie space: delete it in the workspace (it lives in your user folder).
-4. Terraform stacks, in this order: `50`, `40`, `35`, `30`, `25`, `20`, `10`.
+4. Terraform stacks, in this order: `60`, `50`, `45`, `40`, `35`, `30`, `25`, `20`, `10`.
    - Delete the workspace (`10`) only after `40`, which owns the NCC and its workspace binding.
    - The gateway's network interfaces are removed asynchronously by Databricks. `infra/40-databricks-network` waits
      for that before it deletes the cross-account role.

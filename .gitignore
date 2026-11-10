@@ -49,3 +49,9 @@ build/
 .vscode/
 *.swp
 *~
+
+# Public CA bundles shipped with the code (certificates only, no keys)
+!services/pg_seed/*.pem
+
+# Local build output
+**/.build/
